@@ -1,94 +1,3 @@
-// import 'package:flutter/material.dart';
-// import 'package:firebase_database/firebase_database.dart';
-
-// class EnergyMonitoringScreen extends StatefulWidget {
-//   @override
-//   _EnergyMonitoringScreenState createState() => _EnergyMonitoringScreenState();
-// }
-
-// class _EnergyMonitoringScreenState extends State<EnergyMonitoringScreen> {
-//   final DatabaseReference _database = FirebaseDatabase.instance.ref();
-
-//   // Variables to hold data
-//   String bulbStatus = "Loading...";
-//   String buzzerStatus = "Loading...";
-//   String fanStatus = "Loading...";
-//   double humidity = 0.0;
-//   String motionStatus = "Loading...";
-//   double temperature = 0.0;
-
-//   // List to hold temperature data with time
-//   List<Map<String, dynamic>> temperatureData = [];
-
-//   @override
-//   void initState() {
-//     super.initState();
-//     _database.child("Bulb").onValue.listen((event) {
-//       setState(() {
-//         bulbStatus = event.snapshot.value.toString();
-//       });
-//     });
-
-//     _database.child("Buzzer").onValue.listen((event) {
-//       setState(() {
-//         buzzerStatus = event.snapshot.value.toString();
-//       });
-//     });
-
-//     _database.child("Fan").onValue.listen((event) {
-//       setState(() {
-//         fanStatus = event.snapshot.value.toString();
-//       });
-//     });
-
-//     _database.child("Humidity").onValue.listen((event) {
-//       setState(() {
-//         humidity = double.parse(event.snapshot.value.toString());
-//       });
-//     });
-
-//     _database.child("Motion").onValue.listen((event) {
-//       setState(() {
-//         motionStatus = event.snapshot.value.toString();
-//       });
-//     });
-
-//     _database.child("Temperature").onValue.listen((event) {
-//       setState(() {
-//         temperature = double.parse(event.snapshot.value.toString());
-//       });
-//     });
-//   }
-
-//   @override
-//   Widget build(BuildContext context) {
-//     return Scaffold(
-//       appBar: AppBar(
-//         title: Text('IoT Lab'),
-//       ),
-//       body: Padding(
-//         padding: const EdgeInsets.all(16.0),
-//         child: Column(
-//           crossAxisAlignment: CrossAxisAlignment.start,
-//           children: [
-//             Text('Bulb Status: $bulbStatus', style: TextStyle(fontSize: 20)),
-//             Text('Buzzer Status: $buzzerStatus',
-//                 style: TextStyle(fontSize: 20)),
-//             Text('Fan Status: $fanStatus', style: TextStyle(fontSize: 20)),
-//             Text('Humidity: $humidity %', style: TextStyle(fontSize: 20)),
-//             Text('Motion Status: $motionStatus',
-//                 style: TextStyle(fontSize: 20)),
-//             Text('Temperature: $temperature °C',
-//                 style: TextStyle(fontSize: 20)),
-//           ],
-//         ),
-//       ),
-//     );
-//   }
-// }
-
-//---------both humid + temp------------
-
 import 'package:charts_flutter/flutter.dart' as charts;
 import 'package:firebase_database/firebase_database.dart';
 import 'package:flutter/material.dart';
@@ -106,7 +15,7 @@ class TempChart extends StatelessWidget {
       temperatureSeriesList; // For temperature
   final List<charts.Series<TempData, int>> humiditySeriesList; // For humidity
 
-  TempChart(this.temperatureSeriesList, this.humiditySeriesList);
+  const TempChart(this.temperatureSeriesList, this.humiditySeriesList, {super.key});
 
   @override
   Widget build(BuildContext context) {
@@ -124,6 +33,8 @@ class TempChart extends StatelessWidget {
 }
 
 class EnergyMonitoringScreen extends StatefulWidget {
+  const EnergyMonitoringScreen({super.key});
+
   @override
   _EnergyMonitoringScreenState createState() => _EnergyMonitoringScreenState();
 }
@@ -132,27 +43,43 @@ class _EnergyMonitoringScreenState extends State<EnergyMonitoringScreen> {
   final databaseRef = FirebaseDatabase.instance.ref();
   List<TempData> tempDataList = []; // Store temperature and humidity data
   int currentTimeInMinutes = 0; // Track time in minutes
+  bool _isLoading = true; // Add a loading indicator
 
   @override
   void initState() {
     super.initState();
-    _listenToTemperatureAndHumidityChanges();
+    _fetchDataAndListen(); // Single function to fetch data and listen for updates
   }
 
-  void _listenToTemperatureAndHumidityChanges() {
+  void _fetchDataAndListen() async {
+    // Fetch initial data from the Firebase Database
+    final DataSnapshot snapshot = await databaseRef.get();
+
+    // Extract temperature and humidity from the snapshot, if available
+    final double initialTemperature =
+        double.tryParse(snapshot.child('Temperature').value?.toString() ?? '') ?? 0.0;
+    final double initialHumidity =
+        double.tryParse(snapshot.child('Humidity').value?.toString() ?? '') ?? 0.0;
+
+    // Initialize the chart with the initial data
+    setState(() {
+      tempDataList.add(TempData(currentTimeInMinutes, initialTemperature, initialHumidity));
+      currentTimeInMinutes++; // Increment time for next data point
+      _isLoading = false; // Stop showing the loader after initial data is loaded
+    });
+
+    // Listen for real-time updates to Temperature and Humidity
     databaseRef.onValue.listen((event) {
       final temperatureValue =
-          double.parse(event.snapshot.child('Temperature').value.toString());
+          double.tryParse(event.snapshot.child('Temperature').value?.toString() ?? '') ?? 0.0;
       final humidityValue =
-          double.parse(event.snapshot.child('Humidity').value.toString());
+          double.tryParse(event.snapshot.child('Humidity').value?.toString() ?? '') ?? 0.0;
 
-      // Debugging log to see the received values
       print(
           'Received temperature: $temperatureValue, humidity: $humidityValue at time: $currentTimeInMinutes minutes');
 
       setState(() {
-        tempDataList.add(
-            TempData(currentTimeInMinutes, temperatureValue, humidityValue));
+        tempDataList.add(TempData(currentTimeInMinutes, temperatureValue, humidityValue));
         currentTimeInMinutes += 1; // Increment time for next data point
       });
     });
@@ -160,11 +87,14 @@ class _EnergyMonitoringScreenState extends State<EnergyMonitoringScreen> {
 
   @override
   Widget build(BuildContext context) {
+    // Show loader while data is being fetched
+    if (_isLoading) {
+      return const Center(child: CircularProgressIndicator());
+    }
+
     // Ensure we have enough data to display
     if (tempDataList.isEmpty) {
-      return Center(
-          child:
-              CircularProgressIndicator()); // Show loading indicator while waiting for data
+      return const Center(child: Text('No data available')); // Show a message if no data is available
     }
 
     // Create the chart series
@@ -186,12 +116,11 @@ class _EnergyMonitoringScreenState extends State<EnergyMonitoringScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: Text("Real-Time Temperature and Humidity Chart"),
+        title: const Text("Real-Time Temperature and Humidity Chart"),
       ),
       body: Padding(
         padding: const EdgeInsets.all(8.0),
-        child: TempChart([temperatureSeries],
-            [humiditySeries]), // Pass both series to TempChart
+        child: TempChart([temperatureSeries], [humiditySeries]), // Pass both series to TempChart
       ),
     );
   }
