@@ -6,7 +6,7 @@ import 'package:theiotlab/HomePage/CustomWidgets/optionsBoxes.dart';
 import 'package:theiotlab/HomePage/CustomWidgets/tempWidget.dart';
 
 import '../INCOMPLETE/DoorLockScreen/doorlock.dart';
-import '../EnergyMonitoringScreen/EMS.dart';
+import '../EnergyMonitoringScreen/ems.dart';
 import '../INCOMPLETE/ProjectorScreen/projector.dart';
 import '../INCOMPLETE/SmartAccessScreen/smartAccess.dart';
 
